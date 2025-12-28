@@ -108,7 +108,7 @@ export function MainLayout() {
   const { setResponse, clearResponse } = useResponse()
   const { setLoading } = useLoading()
   const { addToHistory } = useHistory()
-  const { activeEnvironment } = useEnvironments()
+  const { activeEnvironment, activeEnvironmentId, updateEnvironment } = useEnvironments()
   const { resolvedTheme, toggleTheme } = useTheme()
   const [testResults, setTestResults] = useState<TestResult[]>([])
 
@@ -174,7 +174,30 @@ export function MainLayout() {
 
         // Run test script if present
         if (activeRequest.testScript?.enabled && activeRequest.testScript.content) {
-          const results = runTestScript(activeRequest.testScript.content, apiResponse)
+          const scriptContext: ScriptContext = {
+            variables: activeEnvironment?.variables || [],
+            onSetVariable: (key: string, value: string) => {
+              if (!activeEnvironmentId || !activeEnvironment) {
+                console.warn('No active environment to set variable:', key)
+                return
+              }
+              // Update or add the variable in the active environment
+              const existingVars = activeEnvironment.variables || []
+              const existingIndex = existingVars.findIndex((v) => v.key === key)
+              let newVars: KeyValue[]
+              if (existingIndex >= 0) {
+                // Update existing variable
+                newVars = existingVars.map((v, i) =>
+                  i === existingIndex ? { ...v, value, enabled: true } : v
+                )
+              } else {
+                // Add new variable
+                newVars = [...existingVars, { id: uuidv4(), key, value, enabled: true }]
+              }
+              updateEnvironment(activeEnvironmentId, { variables: newVars })
+            },
+          }
+          const results = runTestScript(activeRequest.testScript.content, apiResponse, scriptContext)
           setTestResults(results)
         }
 
@@ -289,8 +312,13 @@ export function MainLayout() {
   )
 }
 
+interface ScriptContext {
+  variables: KeyValue[]
+  onSetVariable: (key: string, value: string) => void
+}
+
 // Simple test script runner
-function runTestScript(script: string, response: ApiResponse): TestResult[] {
+function runTestScript(script: string, response: ApiResponse, context: ScriptContext): TestResult[] {
   const results: TestResult[] = []
 
   // Create a simple pm-like API
@@ -306,6 +334,15 @@ function runTestScript(script: string, response: ApiResponse): TestResult[] {
         } catch {
           return null
         }
+      },
+    },
+    environment: {
+      get: (key: string): string | undefined => {
+        const variable = context.variables.find((v) => v.key === key && v.enabled)
+        return variable?.value
+      },
+      set: (key: string, value: string) => {
+        context.onSetVariable(key, String(value))
       },
     },
     test: (name: string, fn: () => boolean | void) => {

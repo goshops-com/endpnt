@@ -12,11 +12,20 @@ interface PostmanCollection {
   variable?: PostmanVariable[]
 }
 
+interface PostmanEvent {
+  listen: 'test' | 'prerequest'
+  script: {
+    exec: string[]
+    type?: string
+  }
+}
+
 interface PostmanItem {
   name: string
   description?: string
   request?: PostmanRequest
   item?: PostmanItem[]
+  event?: PostmanEvent[]
 }
 
 interface PostmanRequest {
@@ -239,10 +248,36 @@ export function importFromPostman(postmanCollection: PostmanCollection): Collect
     return { type: 'none' }
   }
 
+  const convertScripts = (events?: PostmanEvent[]): { testScript?: ApiRequest['testScript']; preRequestScript?: ApiRequest['preRequestScript'] } => {
+    if (!events) return {}
+
+    const result: { testScript?: ApiRequest['testScript']; preRequestScript?: ApiRequest['preRequestScript'] } = {}
+
+    for (const event of events) {
+      const scriptContent = event.script?.exec?.join('\n') || ''
+      if (!scriptContent.trim()) continue
+
+      if (event.listen === 'test') {
+        result.testScript = {
+          enabled: true,
+          content: scriptContent,
+        }
+      } else if (event.listen === 'prerequest') {
+        result.preRequestScript = {
+          enabled: true,
+          content: scriptContent,
+        }
+      }
+    }
+
+    return result
+  }
+
   const convertRequest = (item: PostmanItem): ApiRequest | null => {
     if (!item.request) return null
 
     const { url, params } = convertParams(item.request.url)
+    const scripts = convertScripts(item.event)
 
     return {
       id: uuidv4(),
@@ -252,6 +287,8 @@ export function importFromPostman(postmanCollection: PostmanCollection): Collect
       headers: convertHeaders(item.request.header),
       params,
       body: convertBody(item.request.body),
+      testScript: scripts.testScript,
+      preRequestScript: scripts.preRequestScript,
       createdAt: now,
       updatedAt: now,
     }
