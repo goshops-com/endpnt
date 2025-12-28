@@ -36,6 +36,16 @@ yarn-error.log*
 # vercel
 .vercel
 
+# cloudflare / open-next build output
+.open-next/
+.wrangler/
+
+# playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

@@ -1,0 +1,21 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "postman-clone"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = ".vercel/output/static"
+
+# Environment variables
+[vars]
+S3_REGION = "auto"
+S3_BUCKET = "postman-clone-storage"
+CLOUDFLARE_RUNTIME = "true"
+
+# R2 bucket binding
+[[r2_buckets]]
+binding = "R2_BUCKET"
+bucket_name = "postman-clone-storage"
+
+# KV namespace for caching (optional)
+# [[kv_namespaces]]
+# binding = "CACHE"
+# id = "your-kv-namespace-id"
