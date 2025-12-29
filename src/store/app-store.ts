@@ -7,6 +7,7 @@ export interface AppState {
   activeEnvironmentId: string | null
   activeRequest: ApiRequest | null
   response: ApiResponse | null
+  responses: Record<string, ApiResponse> // Responses stored per request ID
   history: HistoryEntry[]
   isLoading: boolean
 }
@@ -46,7 +47,8 @@ export interface AppStore {
   clearActiveRequest(): void
 
   // Response
-  setResponse(response: ApiResponse): void
+  setResponse(response: ApiResponse, requestId?: string): void
+  getResponseForRequest(requestId: string): ApiResponse | null
   clearResponse(): void
 
   // History
@@ -76,6 +78,7 @@ class AppStoreImpl implements AppStore {
       activeEnvironmentId: null,
       activeRequest: null,
       response: null,
+      responses: {},
       history: [],
       isLoading: false,
     }
@@ -391,7 +394,9 @@ class AppStoreImpl implements AppStore {
 
   // Active request
   setActiveRequest(request: ApiRequest | null): void {
-    this.setState({ activeRequest: request })
+    // When switching requests, load the stored response for that request
+    const response = request ? this.state.responses[request.id] || null : null
+    this.setState({ activeRequest: request, response })
   }
 
   updateActiveRequest(updates: Partial<ApiRequest>): void {
@@ -413,8 +418,23 @@ class AppStoreImpl implements AppStore {
   }
 
   // Response
-  setResponse(response: ApiResponse): void {
-    this.setState({ response })
+  setResponse(response: ApiResponse, requestId?: string): void {
+    // Use provided requestId or fall back to activeRequest.id
+    const id = requestId || this.state.activeRequest?.id
+    if (id) {
+      // Store response for this specific request
+      this.setState({
+        response,
+        responses: { ...this.state.responses, [id]: response },
+      })
+    } else {
+      // Fallback: just set the current response
+      this.setState({ response })
+    }
+  }
+
+  getResponseForRequest(requestId: string): ApiResponse | null {
+    return this.state.responses[requestId] || null
   }
 
   clearResponse(): void {

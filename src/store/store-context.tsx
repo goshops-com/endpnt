@@ -42,7 +42,8 @@ interface StoreContextValue {
   setActiveEnvironment: (id: string | null) => void
 
   // Response actions
-  setResponse: (response: ApiResponse) => void
+  setResponse: (response: ApiResponse, requestId?: string) => void
+  getResponseForRequest: (requestId: string) => ApiResponse | null
   clearResponse: () => void
 
   // History actions
@@ -241,6 +242,7 @@ export function StoreProvider({ children }: StoreProviderProps) {
 
       // Response actions
       setResponse: store.setResponse.bind(store),
+      getResponseForRequest: store.getResponseForRequest.bind(store),
       clearResponse: store.clearResponse.bind(store),
 
       // History actions
