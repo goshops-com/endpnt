@@ -3,7 +3,8 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useMemo, useRef, useCallback } from 'react'
 import { useAuth } from '@clerk/nextjs'
 import { createAppStore, AppStore, AppState } from './app-store'
-import { createInMemoryStorage, InMemoryStorageClient, getLocalStorage } from '@/lib/storage'
+import { createInMemoryStorage, InMemoryStorageClient } from '@/lib/storage'
+import { getDeviceId } from '@/lib/device-id'
 import type { Collection, Environment, ApiRequest, HistoryEntry, ApiResponse } from '@/types'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -67,21 +68,30 @@ export function StoreProvider({ children }: StoreProviderProps) {
   const isSyncing = useRef(false)
   const debouncedSync = useRef(createDebouncedSync(1000))
 
-  // Sync to API
+  // Sync to API (always - using device ID for anonymous users)
   const syncToApi = useCallback(async (collections: Collection[], environments: Environment[]) => {
-    if (!isSignedIn || isSyncing.current) return
+    if (isSyncing.current) return
+
+    const deviceId = getDeviceId()
+    if (!deviceId) return
+
     isSyncing.current = true
 
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'x-device-id': deviceId,
+      }
+
       await Promise.all([
         fetch('/api/collections', {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({ collections }),
         }),
         fetch('/api/environments', {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({ environments }),
         }),
       ])
@@ -90,105 +100,70 @@ export function StoreProvider({ children }: StoreProviderProps) {
     } finally {
       isSyncing.current = false
     }
-  }, [isSignedIn])
+  }, [])
 
-  // Load data on mount - from API if signed in, otherwise localStorage
+  // Load data on mount - ALWAYS from API using device ID or Clerk auth
   useEffect(() => {
-    if (!isLoaded || isInitialized.current) return
+    if (isInitialized.current) return
 
     const loadData = async () => {
       isInitialized.current = true
 
-      if (isSignedIn) {
-        // Load from API
-        try {
-          const [collectionsRes, environmentsRes] = await Promise.all([
-            fetch('/api/collections'),
-            fetch('/api/environments'),
-          ])
+      const deviceId = getDeviceId()
+      if (!deviceId) {
+        setState(store.getState())
+        return
+      }
 
-          if (collectionsRes.ok) {
-            const { collections } = await collectionsRes.json()
-            if (collections && collections.length > 0) {
-              store.setCollections(collections)
-            }
-          }
-
-          if (environmentsRes.ok) {
-            const { environments } = await environmentsRes.json()
-            if (environments && environments.length > 0) {
-              store.setEnvironments(environments)
-            }
-          }
-
-          // Load active IDs from localStorage (these are UI state, not persisted to S3)
-          const localStorage = getLocalStorage()
-          const activeCollectionId = localStorage.loadActiveCollectionId()
-          const activeEnvironmentId = localStorage.loadActiveEnvironmentId()
-          const history = localStorage.loadHistory()
-
-          if (activeCollectionId) store.setActiveCollection(activeCollectionId)
-          if (activeEnvironmentId) store.setActiveEnvironment(activeEnvironmentId)
-          if (history.length > 0) store.setHistory(history)
-
-          // Force state update since subscription might not be set up yet
-          setState(store.getState())
-        } catch (error) {
-          console.error('Failed to load from API:', error)
-          // Fallback to localStorage
-          const localStorage = getLocalStorage()
-          const collections = localStorage.loadCollections()
-          const environments = localStorage.loadEnvironments()
-          if (collections.length > 0) store.setCollections(collections)
-          if (environments.length > 0) store.setEnvironments(environments)
-          setState(store.getState())
+      // Always load from API (S3/R2)
+      try {
+        const headers: Record<string, string> = {
+          'x-device-id': deviceId,
         }
-      } else {
-        // Not signed in - load from localStorage
-        const localStorage = getLocalStorage()
-        const collections = localStorage.loadCollections()
-        const environments = localStorage.loadEnvironments()
-        const history = localStorage.loadHistory()
-        const activeCollectionId = localStorage.loadActiveCollectionId()
-        const activeEnvironmentId = localStorage.loadActiveEnvironmentId()
 
-        if (collections.length > 0) store.setCollections(collections)
-        if (environments.length > 0) store.setEnvironments(environments)
-        if (history.length > 0) store.setHistory(history)
-        if (activeCollectionId) store.setActiveCollection(activeCollectionId)
-        if (activeEnvironmentId) store.setActiveEnvironment(activeEnvironmentId)
+        const [collectionsRes, environmentsRes] = await Promise.all([
+          fetch('/api/collections', { headers }),
+          fetch('/api/environments', { headers }),
+        ])
+
+        if (collectionsRes.ok) {
+          const { collections } = await collectionsRes.json()
+          if (collections && collections.length > 0) {
+            store.setCollections(collections)
+          }
+        }
+
+        if (environmentsRes.ok) {
+          const { environments } = await environmentsRes.json()
+          if (environments && environments.length > 0) {
+            store.setEnvironments(environments)
+          }
+        }
 
         // Force state update since subscription might not be set up yet
+        setState(store.getState())
+      } catch (error) {
+        console.error('Failed to load from API:', error)
         setState(store.getState())
       }
     }
 
     loadData()
-  }, [isLoaded, isSignedIn, store])
+  }, [store])
 
-  // Subscribe to store changes and persist
+  // Subscribe to store changes and sync to S3/R2
   useEffect(() => {
     const unsubscribe = store.subscribe(() => {
       const newState = store.getState()
       setState(newState)
 
-      // Always persist to localStorage (for UI state and offline fallback)
-      const localStorage = getLocalStorage()
-      localStorage.saveCollections(newState.collections)
-      localStorage.saveEnvironments(newState.environments)
-      localStorage.saveHistory(newState.history)
-      localStorage.saveActiveCollectionId(newState.activeCollectionId)
-      localStorage.saveActiveEnvironmentId(newState.activeEnvironmentId)
-
-      // If signed in, also sync to API (debounced)
-      if (isSignedIn) {
-        debouncedSync.current(() => {
-          syncToApi(newState.collections, newState.environments)
-        })
-      }
+      // Always sync to API (S3/R2) - debounced
+      debouncedSync.current(() => {
+        syncToApi(newState.collections, newState.environments)
+      })
     })
     return unsubscribe
-  }, [store, isSignedIn, syncToApi])
+  }, [store, syncToApi])
 
   const value = useMemo<StoreContextValue>(() => {
     const createCollection = (name: string, description?: string): Collection => {

@@ -5,13 +5,24 @@ import type { Environment } from '@/types'
 
 export const runtime = 'edge'
 
+// Get user ID from Clerk auth or device ID header
+async function getUserId(request: NextRequest): Promise<string | null> {
+  // Try Clerk auth first
+  const { userId } = await auth()
+  if (userId) return userId
+
+  // Fall back to device ID from header
+  const deviceId = request.headers.get('x-device-id')
+  return deviceId || null
+}
+
 // GET /api/environments - List user's environments
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const { userId } = await auth()
+    const userId = await getUserId(request)
 
     if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized - provide auth or device ID' }, { status: 401 })
     }
 
     const storage = getStorage()
@@ -30,10 +41,10 @@ export async function GET() {
 // POST /api/environments - Create or update an environment
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth()
+    const userId = await getUserId(request)
 
     if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized - provide auth or device ID' }, { status: 401 })
     }
 
     const body = await request.json()
@@ -59,10 +70,10 @@ export async function POST(request: NextRequest) {
 // PUT /api/environments - Bulk save environments
 export async function PUT(request: NextRequest) {
   try {
-    const { userId } = await auth()
+    const userId = await getUserId(request)
 
     if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized - provide auth or device ID' }, { status: 401 })
     }
 
     const body = await request.json()
