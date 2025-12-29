@@ -3,8 +3,8 @@ import { auth } from '@clerk/nextjs/server'
 import { getStorage, type R2Bucket } from '@/lib/storage'
 import type { Collection } from '@/types'
 
-// Runtime is 'nodejs' for local dev with S3/MinIO AWS SDK XML parsing
-// Cloudflare Pages will override this to edge runtime via @cloudflare/next-on-pages
+// Edge runtime required for Cloudflare Pages
+export const runtime = 'edge'
 
 // Dynamic import for Cloudflare runtime
 async function getR2Bucket(): Promise<R2Bucket | undefined> {
