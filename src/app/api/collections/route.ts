@@ -2,13 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { getStorage, type R2Bucket } from '@/lib/storage'
 import type { Collection } from '@/types'
-import { getRequestContext } from '@cloudflare/next-on-pages'
 
-export const runtime = 'edge'
+// Runtime is 'nodejs' for local dev with S3/MinIO AWS SDK XML parsing
+// Cloudflare Pages will override this to edge runtime via @cloudflare/next-on-pages
 
-// Get R2 bucket from Cloudflare context
-function getR2Bucket(): R2Bucket | undefined {
+// Dynamic import for Cloudflare runtime
+async function getR2Bucket(): Promise<R2Bucket | undefined> {
+  if (process.env.NODE_ENV !== 'production') {
+    return undefined
+  }
   try {
+    const { getRequestContext } = await import('@cloudflare/next-on-pages')
     const { env } = getRequestContext()
     return (env as { R2_BUCKET?: R2Bucket }).R2_BUCKET
   } catch {
@@ -36,7 +40,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized - provide auth or device ID' }, { status: 401 })
     }
 
-    const storage = getStorage(getR2Bucket())
+    const storage = getStorage(await getR2Bucket())
     const collections = await storage.listCollections(userId)
 
     return NextResponse.json({ collections })
@@ -65,7 +69,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Collection is required' }, { status: 400 })
     }
 
-    const storage = getStorage(getR2Bucket())
+    const storage = getStorage(await getR2Bucket())
     await storage.saveCollection(userId, collection)
 
     return NextResponse.json({ success: true, collection })
@@ -94,7 +98,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Collections array is required' }, { status: 400 })
     }
 
-    const storage = getStorage(getR2Bucket())
+    const storage = getStorage(await getR2Bucket())
 
     // Save all collections
     await Promise.all(
