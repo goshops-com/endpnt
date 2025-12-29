@@ -127,16 +127,16 @@ export function StoreProvider({ children }: StoreProviderProps) {
         ])
 
         if (collectionsRes.ok) {
-          const { collections } = await collectionsRes.json()
-          if (collections && collections.length > 0) {
-            store.setCollections(collections)
+          const data = await collectionsRes.json() as { collections: Collection[] }
+          if (data.collections && data.collections.length > 0) {
+            store.setCollections(data.collections)
           }
         }
 
         if (environmentsRes.ok) {
-          const { environments } = await environmentsRes.json()
-          if (environments && environments.length > 0) {
-            store.setEnvironments(environments)
+          const data = await environmentsRes.json() as { environments: Environment[] }
+          if (data.environments && data.environments.length > 0) {
+            store.setEnvironments(data.environments)
           }
         }
 

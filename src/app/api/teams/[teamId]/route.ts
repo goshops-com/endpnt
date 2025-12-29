@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { getStorage } from '@/lib/storage'
+import { getStorage, type R2Bucket } from '@/lib/storage'
+import { getRequestContext } from '@cloudflare/next-on-pages'
 
 export const runtime = 'edge'
+
+function getR2Bucket(): R2Bucket | undefined {
+  try {
+    const { env } = getRequestContext()
+    return (env as { R2_BUCKET?: R2Bucket }).R2_BUCKET
+  } catch {
+    return undefined
+  }
+}
 
 // GET /api/teams/[teamId] - Get team details
 export async function GET(
@@ -17,7 +27,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const storage = getStorage()
+    const storage = getStorage(getR2Bucket())
     const team = await storage.getTeam(teamId)
 
     if (!team) {
@@ -53,7 +63,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const storage = getStorage()
+    const storage = getStorage(getR2Bucket())
     const team = await storage.getTeam(teamId)
 
     if (!team) {
@@ -67,7 +77,7 @@ export async function PATCH(
     }
 
     const body = await request.json()
-    const { name, description } = body
+    const { name, description } = body as { name?: string; description?: string }
 
     if (name) team.name = name
     if (description !== undefined) team.description = description
@@ -98,7 +108,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const storage = getStorage()
+    const storage = getStorage(getR2Bucket())
     const team = await storage.getTeam(teamId)
 
     if (!team) {

@@ -69,7 +69,7 @@ export function TeamSwitcher({ onTeamChange }: TeamSwitcherProps) {
     try {
       const res = await fetch('/api/teams')
       if (res.ok) {
-        const data = await res.json()
+        const data = await res.json() as { teams: Team[] }
         setTeams(data.teams || [])
         // Set active team from localStorage or first team
         const savedTeamId = localStorage.getItem('activeTeamId')
@@ -101,7 +101,7 @@ export function TeamSwitcher({ onTeamChange }: TeamSwitcherProps) {
       })
 
       if (res.ok) {
-        const data = await res.json()
+        const data = await res.json() as { team: Team }
         setTeams([...teams, data.team])
         setActiveTeamId(data.team.id)
         localStorage.setItem('activeTeamId', data.team.id)

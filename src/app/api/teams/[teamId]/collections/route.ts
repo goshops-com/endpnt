@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { getStorage } from '@/lib/storage'
+import { getStorage, type R2Bucket } from '@/lib/storage'
 import type { Collection } from '@/types'
+import { getRequestContext } from '@cloudflare/next-on-pages'
 
 export const runtime = 'edge'
+
+function getR2Bucket(): R2Bucket | undefined {
+  try {
+    const { env } = getRequestContext()
+    return (env as { R2_BUCKET?: R2Bucket }).R2_BUCKET
+  } catch {
+    return undefined
+  }
+}
 
 // GET /api/teams/[teamId]/collections - List team collections
 export async function GET(
@@ -18,7 +28,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const storage = getStorage()
+    const storage = getStorage(getR2Bucket())
     const team = await storage.getTeam(teamId)
 
     if (!team) {
@@ -56,7 +66,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const storage = getStorage()
+    const storage = getStorage(getR2Bucket())
     const team = await storage.getTeam(teamId)
 
     if (!team) {

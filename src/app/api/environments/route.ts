@@ -1,9 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { getStorage } from '@/lib/storage'
+import { getStorage, type R2Bucket } from '@/lib/storage'
 import type { Environment } from '@/types'
+import { getRequestContext } from '@cloudflare/next-on-pages'
 
 export const runtime = 'edge'
+
+// Get R2 bucket from Cloudflare context
+function getR2Bucket(): R2Bucket | undefined {
+  try {
+    const { env } = getRequestContext()
+    return (env as { R2_BUCKET?: R2Bucket }).R2_BUCKET
+  } catch {
+    return undefined
+  }
+}
 
 // Get user ID from Clerk auth or device ID header
 async function getUserId(request: NextRequest): Promise<string | null> {
@@ -25,7 +36,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized - provide auth or device ID' }, { status: 401 })
     }
 
-    const storage = getStorage()
+    const storage = getStorage(getR2Bucket())
     const environments = await storage.listEnvironments(userId)
 
     return NextResponse.json({ environments })
@@ -54,7 +65,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Environment is required' }, { status: 400 })
     }
 
-    const storage = getStorage()
+    const storage = getStorage(getR2Bucket())
     await storage.saveEnvironment(userId, environment)
 
     return NextResponse.json({ success: true, environment })
@@ -83,7 +94,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Environments array is required' }, { status: 400 })
     }
 
-    const storage = getStorage()
+    const storage = getStorage(getR2Bucket())
 
     // Save all environments
     await Promise.all(

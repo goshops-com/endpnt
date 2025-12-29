@@ -43,7 +43,7 @@ export function ShareCollectionDialog({ collection, trigger, onShare }: ShareCol
     try {
       const res = await fetch('/api/teams')
       if (res.ok) {
-        const data = await res.json()
+        const data = await res.json() as { teams: Team[] }
         setTeams(data.teams || [])
 
         // Check which teams already have this collection

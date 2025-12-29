@@ -158,7 +158,7 @@ export function MainLayout() {
         }),
       })
 
-      const data = await response.json()
+      const data = await response.json() as ApiResponse & { error?: string }
 
       if (response.ok) {
         const apiResponse: ApiResponse = {

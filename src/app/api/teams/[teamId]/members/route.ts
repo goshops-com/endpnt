@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { getStorage } from '@/lib/storage'
+import { getStorage, type R2Bucket } from '@/lib/storage'
 import type { TeamInvitation, TeamRole } from '@/types'
 import { v4 as uuidv4 } from 'uuid'
+import { getRequestContext } from '@cloudflare/next-on-pages'
 
 export const runtime = 'edge'
+
+function getR2Bucket(): R2Bucket | undefined {
+  try {
+    const { env } = getRequestContext()
+    return (env as { R2_BUCKET?: R2Bucket }).R2_BUCKET
+  } catch {
+    return undefined
+  }
+}
 
 // POST /api/teams/[teamId]/members - Invite a member
 export async function POST(
@@ -19,7 +29,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const storage = getStorage()
+    const storage = getStorage(getR2Bucket())
     const team = await storage.getTeam(teamId)
 
     if (!team) {
@@ -88,7 +98,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const storage = getStorage()
+    const storage = getStorage(getR2Bucket())
     const team = await storage.getTeam(teamId)
 
     if (!team) {
@@ -96,7 +106,7 @@ export async function DELETE(
     }
 
     const body = await request.json()
-    const { memberId } = body
+    const { memberId } = body as { memberId: string }
 
     if (!memberId) {
       return NextResponse.json({ error: 'Member ID is required' }, { status: 400 })

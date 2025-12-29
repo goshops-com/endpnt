@@ -11,7 +11,8 @@
 - Binding: `R2_BUCKET`
 - Region: auto
 
-## Current Issue
-- Data is lost on browser refresh
-- Collections imported are not being saved to S3
-- Need to fix S3 persistence to work properly
+## Implementation (FIXED)
+- Device ID stored in localStorage identifies anonymous users
+- API routes accept `x-device-id` header for anonymous storage
+- All data syncs to S3/R2 via debounced API calls
+- Clerk auth takes priority over device ID when user is signed in
