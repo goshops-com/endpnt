@@ -256,7 +256,7 @@ export function EnvironmentManager() {
 
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" aria-label="Manage environments">
               <Settings className="h-4 w-4" />
             </Button>
           </DialogTrigger>
@@ -273,7 +273,7 @@ export function EnvironmentManager() {
               <div className="w-48 border-r pr-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium">Environments</span>
-                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setIsCreateOpen(true)}>
+                  <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setIsCreateOpen(true)} aria-label="Create environment">
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>

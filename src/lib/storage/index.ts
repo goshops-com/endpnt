@@ -27,3 +27,5 @@ export type { StorageClient, StorageConfig, StorageResult } from './storage-clie
 export { createInMemoryStorage } from './in-memory-storage'
 export type { InMemoryStorageClient } from './in-memory-storage'
 export { createR2StorageClient, type R2Bucket } from './r2-storage-client'
+export { getLocalStorage } from './local-storage'
+export type { LocalStorageClient } from './local-storage'

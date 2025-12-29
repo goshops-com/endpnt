@@ -1,4 +1,4 @@
-import type { Collection, Environment, ApiRequest, HistoryEntry, ApiResponse } from '@/types'
+import type { Collection, Environment, ApiRequest, HistoryEntry, ApiResponse, Folder } from '@/types'
 
 export interface AppState {
   collections: Collection[]
@@ -25,6 +25,14 @@ export interface AppStore {
   addRequestToCollection(collectionId: string, request: ApiRequest): void
   updateRequestInCollection(collectionId: string, requestId: string, updates: Partial<ApiRequest>): void
   deleteRequestFromCollection(collectionId: string, requestId: string): void
+
+  // Folders within collections
+  addFolderToCollection(collectionId: string, folder: Folder, parentFolderId?: string): void
+  updateFolderInCollection(collectionId: string, folderId: string, updates: Partial<Folder>): void
+  deleteFolderFromCollection(collectionId: string, folderId: string): void
+  addRequestToFolder(collectionId: string, folderId: string, request: ApiRequest): void
+  deleteRequestFromFolder(collectionId: string, folderId: string, requestId: string): void
+  moveRequestToFolder(collectionId: string, requestId: string, fromFolderId: string | null, toFolderId: string | null): void
 
   // Environments
   addEnvironment(environment: Environment): void
@@ -160,6 +168,201 @@ class AppStoreImpl implements AppStore {
     })
   }
 
+  // Folders within collections
+  addFolderToCollection(collectionId: string, folder: Folder, parentFolderId?: string): void {
+    const addFolderRecursive = (folders: Folder[], targetId: string, newFolder: Folder): Folder[] => {
+      return folders.map((f) => {
+        if (f.id === targetId) {
+          return { ...f, folders: [...f.folders, newFolder] }
+        }
+        if (f.folders.length > 0) {
+          return { ...f, folders: addFolderRecursive(f.folders, targetId, newFolder) }
+        }
+        return f
+      })
+    }
+
+    this.setState({
+      collections: this.state.collections.map((col) => {
+        if (col.id !== collectionId) return col
+        if (parentFolderId) {
+          return {
+            ...col,
+            folders: addFolderRecursive(col.folders, parentFolderId, folder),
+            updatedAt: new Date().toISOString(),
+          }
+        }
+        return {
+          ...col,
+          folders: [...col.folders, folder],
+          updatedAt: new Date().toISOString(),
+        }
+      }),
+    })
+  }
+
+  updateFolderInCollection(collectionId: string, folderId: string, updates: Partial<Folder>): void {
+    const updateFolderRecursive = (folders: Folder[]): Folder[] => {
+      return folders.map((f) => {
+        if (f.id === folderId) {
+          return { ...f, ...updates }
+        }
+        if (f.folders.length > 0) {
+          return { ...f, folders: updateFolderRecursive(f.folders) }
+        }
+        return f
+      })
+    }
+
+    this.setState({
+      collections: this.state.collections.map((col) =>
+        col.id === collectionId
+          ? {
+              ...col,
+              folders: updateFolderRecursive(col.folders),
+              updatedAt: new Date().toISOString(),
+            }
+          : col
+      ),
+    })
+  }
+
+  deleteFolderFromCollection(collectionId: string, folderId: string): void {
+    const deleteFolderRecursive = (folders: Folder[]): Folder[] => {
+      return folders
+        .filter((f) => f.id !== folderId)
+        .map((f) => ({
+          ...f,
+          folders: deleteFolderRecursive(f.folders),
+        }))
+    }
+
+    this.setState({
+      collections: this.state.collections.map((col) =>
+        col.id === collectionId
+          ? {
+              ...col,
+              folders: deleteFolderRecursive(col.folders),
+              updatedAt: new Date().toISOString(),
+            }
+          : col
+      ),
+    })
+  }
+
+  addRequestToFolder(collectionId: string, folderId: string, request: ApiRequest): void {
+    const addRequestRecursive = (folders: Folder[]): Folder[] => {
+      return folders.map((f) => {
+        if (f.id === folderId) {
+          return { ...f, requests: [...f.requests, request] }
+        }
+        if (f.folders.length > 0) {
+          return { ...f, folders: addRequestRecursive(f.folders) }
+        }
+        return f
+      })
+    }
+
+    this.setState({
+      collections: this.state.collections.map((col) =>
+        col.id === collectionId
+          ? {
+              ...col,
+              folders: addRequestRecursive(col.folders),
+              updatedAt: new Date().toISOString(),
+            }
+          : col
+      ),
+    })
+  }
+
+  deleteRequestFromFolder(collectionId: string, folderId: string, requestId: string): void {
+    const deleteRequestRecursive = (folders: Folder[]): Folder[] => {
+      return folders.map((f) => {
+        if (f.id === folderId) {
+          return { ...f, requests: f.requests.filter((r) => r.id !== requestId) }
+        }
+        if (f.folders.length > 0) {
+          return { ...f, folders: deleteRequestRecursive(f.folders) }
+        }
+        return f
+      })
+    }
+
+    this.setState({
+      collections: this.state.collections.map((col) =>
+        col.id === collectionId
+          ? {
+              ...col,
+              folders: deleteRequestRecursive(col.folders),
+              updatedAt: new Date().toISOString(),
+            }
+          : col
+      ),
+    })
+  }
+
+  moveRequestToFolder(collectionId: string, requestId: string, fromFolderId: string | null, toFolderId: string | null): void {
+    let movedRequest: ApiRequest | null = null
+
+    // Helper to find and remove request from folders
+    const removeFromFolders = (folders: Folder[]): Folder[] => {
+      return folders.map((f) => {
+        if (fromFolderId && f.id === fromFolderId) {
+          const req = f.requests.find((r) => r.id === requestId)
+          if (req) movedRequest = req
+          return { ...f, requests: f.requests.filter((r) => r.id !== requestId) }
+        }
+        if (f.folders.length > 0) {
+          return { ...f, folders: removeFromFolders(f.folders) }
+        }
+        return f
+      })
+    }
+
+    // Helper to add request to folders
+    const addToFolders = (folders: Folder[], request: ApiRequest): Folder[] => {
+      return folders.map((f) => {
+        if (f.id === toFolderId) {
+          return { ...f, requests: [...f.requests, request] }
+        }
+        if (f.folders.length > 0) {
+          return { ...f, folders: addToFolders(f.folders, request) }
+        }
+        return f
+      })
+    }
+
+    this.setState({
+      collections: this.state.collections.map((col) => {
+        if (col.id !== collectionId) return col
+
+        let requests = col.requests
+        let folders = col.folders
+
+        // Remove from source
+        if (fromFolderId === null) {
+          const req = requests.find((r) => r.id === requestId)
+          if (req) movedRequest = req
+          requests = requests.filter((r) => r.id !== requestId)
+        } else {
+          folders = removeFromFolders(folders)
+        }
+
+        if (!movedRequest) return col
+
+        // Add to destination
+        if (toFolderId === null) {
+          requests = [...requests, movedRequest]
+        } else {
+          folders = addToFolders(folders, movedRequest)
+        }
+
+        return { ...col, requests, folders, updatedAt: new Date().toISOString() }
+      }),
+    })
+  }
+
   // Environments
   addEnvironment(environment: Environment): void {
     this.setState({
@@ -193,9 +396,15 @@ class AppStoreImpl implements AppStore {
 
   updateActiveRequest(updates: Partial<ApiRequest>): void {
     if (this.state.activeRequest) {
-      this.setState({
-        activeRequest: { ...this.state.activeRequest, ...updates, updatedAt: new Date().toISOString() },
-      })
+      const updatedRequest = { ...this.state.activeRequest, ...updates, updatedAt: new Date().toISOString() }
+
+      // Update the active request state
+      this.setState({ activeRequest: updatedRequest })
+
+      // Also sync the changes to the collection if we have an active collection
+      if (this.state.activeCollectionId) {
+        this.updateRequestInCollection(this.state.activeCollectionId, this.state.activeRequest.id, updates)
+      }
     }
   }
 

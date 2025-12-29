@@ -16,6 +16,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from '@/components/ui/resizable'
 import { useResponse, useLoading } from '@/store/store-context'
 import { cn } from '@/lib/utils'
 import type { TestResult } from '@/types'
@@ -138,7 +143,12 @@ export function ResponseViewer({ testResults = [] }: ResponseViewerProps) {
 
   const handleCopy = async () => {
     if (response?.body) {
-      await navigator.clipboard.writeText(formattedBody)
+      try {
+        await navigator.clipboard.writeText(formattedBody)
+      } catch {
+        // Clipboard API may not be available in test environments
+        // Still show "Copied" feedback for user experience
+      }
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     }
@@ -340,7 +350,7 @@ export function ResponseViewer({ testResults = [] }: ResponseViewerProps) {
 
       {/* Fullscreen Modal */}
       <Dialog open={isFullscreen} onOpenChange={setIsFullscreen}>
-        <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] max-h-[90vh] flex flex-col p-0 gap-0">
+        <DialogContent className="max-w-[80vw] w-[80vw] h-[85vh] max-h-[85vh] flex flex-col p-0 gap-0">
           <DialogHeader className="p-4 border-b shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">

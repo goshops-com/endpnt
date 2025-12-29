@@ -1,12 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, FolderOpen, ChevronRight, ChevronDown, MoreHorizontal, Trash2, Edit2, Download, Upload, FileCode, Share2 } from 'lucide-react'
+import { Plus, FolderOpen, FolderPlus, ChevronRight, ChevronDown, MoreHorizontal, Trash2, Edit2, Download, Upload, FileCode, Share2 } from 'lucide-react'
 import { HistoryPanel } from '@/components/history/history-panel'
 import { downloadCollection, parseImportedFile } from '@/lib/import-export'
 import { ImportCurlDialog } from '@/components/dialogs/import-curl-dialog'
 import { ShareCollectionDialog } from '@/components/dialogs/share-collection-dialog'
 import type { ApiRequest as ApiRequestType, Folder } from '@/types'
+import { v4 as uuidv4 } from 'uuid'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -41,18 +42,33 @@ const METHOD_COLORS: Record<string, string> = {
 
 interface FolderItemProps {
   folder: Folder
+  collectionId: string
   onRequestSelect: (request: ApiRequest) => void
   activeRequestId: string | null
+  onAddRequest: (folderId: string) => void
+  onAddSubfolder: (parentFolderId: string) => void
+  onEditFolder: (folder: Folder) => void
+  onDeleteFolder: (folderId: string) => void
   depth?: number
 }
 
-function FolderItem({ folder, onRequestSelect, activeRequestId, depth = 0 }: FolderItemProps) {
+function FolderItem({
+  folder,
+  collectionId,
+  onRequestSelect,
+  activeRequestId,
+  onAddRequest,
+  onAddSubfolder,
+  onEditFolder,
+  onDeleteFolder,
+  depth = 0,
+}: FolderItemProps) {
   const [isExpanded, setIsExpanded] = useState(true)
 
   return (
     <div className="mb-0.5">
       <div
-        className="flex items-center gap-1 px-2 py-1 rounded-md cursor-pointer hover:bg-accent"
+        className="flex items-center gap-1 px-2 py-1 rounded-md cursor-pointer hover:bg-accent group"
         style={{ marginLeft: `${depth * 8}px` }}
         onClick={() => setIsExpanded(!isExpanded)}
       >
@@ -63,6 +79,36 @@ function FolderItem({ folder, onRequestSelect, activeRequestId, depth = 0 }: Fol
         )}
         <FolderOpen className="h-3 w-3 text-muted-foreground shrink-0" />
         <span className="flex-1 truncate text-sm text-muted-foreground">{folder.name}</span>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 opacity-0 group-hover:opacity-100"
+              aria-label="Folder options"
+            >
+              <MoreHorizontal className="h-3 w-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onAddRequest(folder.id)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Request
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onAddSubfolder(folder.id)}>
+              <FolderPlus className="mr-2 h-4 w-4" />
+              Add Subfolder
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onEditFolder(folder)}>
+              <Edit2 className="mr-2 h-4 w-4" />
+              Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onDeleteFolder(folder.id)} className="text-destructive">
+              <Trash2 className="mr-2 h-4 w-4" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {isExpanded && (
@@ -87,8 +133,13 @@ function FolderItem({ folder, onRequestSelect, activeRequestId, depth = 0 }: Fol
             <FolderItem
               key={subfolder.id}
               folder={subfolder}
+              collectionId={collectionId}
               onRequestSelect={onRequestSelect}
               activeRequestId={activeRequestId}
+              onAddRequest={onAddRequest}
+              onAddSubfolder={onAddSubfolder}
+              onEditFolder={onEditFolder}
+              onDeleteFolder={onDeleteFolder}
               depth={depth + 1}
             />
           ))}
@@ -105,8 +156,13 @@ interface CollectionItemProps {
   onDelete: () => void
   onEdit: () => void
   onAddRequest: () => void
+  onAddFolder: () => void
   onExport: () => void
   onRequestSelect: (request: ApiRequest) => void
+  onAddRequestToFolder: (folderId: string) => void
+  onAddSubfolder: (parentFolderId: string) => void
+  onEditFolder: (folder: Folder) => void
+  onDeleteFolder: (folderId: string) => void
   activeRequestId: string | null
 }
 
@@ -117,8 +173,13 @@ function CollectionItem({
   onDelete,
   onEdit,
   onAddRequest,
+  onAddFolder,
   onExport,
   onRequestSelect,
+  onAddRequestToFolder,
+  onAddSubfolder,
+  onEditFolder,
+  onDeleteFolder,
   activeRequestId,
 }: CollectionItemProps) {
   const [isExpanded, setIsExpanded] = useState(true)
@@ -148,6 +209,7 @@ function CollectionItem({
               variant="ghost"
               size="icon"
               className="h-6 w-6 opacity-0 group-hover:opacity-100"
+              aria-label="Collection options"
             >
               <MoreHorizontal className="h-4 w-4" />
             </Button>
@@ -156,6 +218,10 @@ function CollectionItem({
             <DropdownMenuItem onClick={onAddRequest}>
               <Plus className="mr-2 h-4 w-4" />
               Add Request
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onAddFolder}>
+              <FolderPlus className="mr-2 h-4 w-4" />
+              Add Folder
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onEdit}>
               <Edit2 className="mr-2 h-4 w-4" />
@@ -188,8 +254,13 @@ function CollectionItem({
             <FolderItem
               key={folder.id}
               folder={folder}
+              collectionId={collection.id}
               onRequestSelect={onRequestSelect}
               activeRequestId={activeRequestId}
+              onAddRequest={onAddRequestToFolder}
+              onAddSubfolder={onAddSubfolder}
+              onEditFolder={onEditFolder}
+              onDeleteFolder={onDeleteFolder}
             />
           ))}
           {collection.requests.map((request) => (
@@ -235,6 +306,16 @@ export function Sidebar() {
   const [editingCollection, setEditingCollection] = useState<Collection | null>(null)
   const [newCollectionName, setNewCollectionName] = useState('')
   const [newCollectionDescription, setNewCollectionDescription] = useState('')
+
+  // Folder state
+  const [isFolderDialogOpen, setIsFolderDialogOpen] = useState(false)
+  const [isEditFolderDialogOpen, setIsEditFolderDialogOpen] = useState(false)
+  const [folderDialogMode, setFolderDialogMode] = useState<'create' | 'subfolder'>('create')
+  const [folderParentId, setFolderParentId] = useState<string | null>(null)
+  const [folderCollectionId, setFolderCollectionId] = useState<string | null>(null)
+  const [editingFolder, setEditingFolder] = useState<Folder | null>(null)
+  const [newFolderName, setNewFolderName] = useState('')
+  const [newFolderDescription, setNewFolderDescription] = useState('')
 
   const handleCreateCollection = () => {
     if (newCollectionName.trim()) {
@@ -295,6 +376,85 @@ export function Sidebar() {
       store.addRequestToCollection(newCollection.id, request)
       setActiveRequest(request)
     }
+  }
+
+  // Folder handlers
+  const handleAddFolder = (collectionId: string) => {
+    setFolderCollectionId(collectionId)
+    setFolderParentId(null)
+    setFolderDialogMode('create')
+    setNewFolderName('')
+    setNewFolderDescription('')
+    setIsFolderDialogOpen(true)
+  }
+
+  const handleAddSubfolder = (collectionId: string, parentFolderId: string) => {
+    setFolderCollectionId(collectionId)
+    setFolderParentId(parentFolderId)
+    setFolderDialogMode('subfolder')
+    setNewFolderName('')
+    setNewFolderDescription('')
+    setIsFolderDialogOpen(true)
+  }
+
+  const handleCreateFolder = () => {
+    if (!folderCollectionId || !newFolderName.trim()) return
+
+    const newFolder: Folder = {
+      id: uuidv4(),
+      name: newFolderName.trim(),
+      description: newFolderDescription.trim() || undefined,
+      requests: [],
+      folders: [],
+    }
+
+    store.addFolderToCollection(folderCollectionId, newFolder, folderParentId || undefined)
+    setIsFolderDialogOpen(false)
+    setNewFolderName('')
+    setNewFolderDescription('')
+  }
+
+  const handleEditFolder = (collectionId: string, folder: Folder) => {
+    setFolderCollectionId(collectionId)
+    setEditingFolder(folder)
+    setNewFolderName(folder.name)
+    setNewFolderDescription(folder.description || '')
+    setIsEditFolderDialogOpen(true)
+  }
+
+  const handleUpdateFolder = () => {
+    if (!folderCollectionId || !editingFolder || !newFolderName.trim()) return
+
+    store.updateFolderInCollection(folderCollectionId, editingFolder.id, {
+      name: newFolderName.trim(),
+      description: newFolderDescription.trim() || undefined,
+    })
+    setIsEditFolderDialogOpen(false)
+    setEditingFolder(null)
+    setNewFolderName('')
+    setNewFolderDescription('')
+  }
+
+  const handleDeleteFolder = (collectionId: string, folderId: string) => {
+    store.deleteFolderFromCollection(collectionId, folderId)
+  }
+
+  const handleAddRequestToFolder = (collectionId: string, folderId: string) => {
+    const now = new Date().toISOString()
+    const request: ApiRequestType = {
+      id: uuidv4(),
+      name: 'New Request',
+      method: 'GET',
+      url: '',
+      headers: [],
+      params: [],
+      body: { type: 'none' },
+      createdAt: now,
+      updatedAt: now,
+    }
+    store.addRequestToFolder(collectionId, folderId, request)
+    setActiveRequest(request)
+    setActiveCollection(collectionId)
   }
 
   return (
@@ -359,11 +519,16 @@ export function Sidebar() {
                 setIsEditDialogOpen(true)
               }}
               onAddRequest={() => handleAddRequest(collection.id)}
+              onAddFolder={() => handleAddFolder(collection.id)}
               onExport={() => downloadCollection(collection, 'postman')}
               onRequestSelect={(request) => {
                 setActiveRequest(request)
                 setActiveCollection(collection.id)
               }}
+              onAddRequestToFolder={(folderId) => handleAddRequestToFolder(collection.id, folderId)}
+              onAddSubfolder={(parentFolderId) => handleAddSubfolder(collection.id, parentFolderId)}
+              onEditFolder={(folder) => handleEditFolder(collection.id, folder)}
+              onDeleteFolder={(folderId) => handleDeleteFolder(collection.id, folderId)}
               activeRequestId={state.activeRequest?.id ?? null}
             />
           ))
@@ -443,6 +608,83 @@ export function Sidebar() {
               Cancel
             </Button>
             <Button onClick={handleEditCollection}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Folder Dialog */}
+      <Dialog open={isFolderDialogOpen} onOpenChange={setIsFolderDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {folderDialogMode === 'subfolder' ? 'Create Subfolder' : 'Create Folder'}
+            </DialogTitle>
+            <DialogDescription>
+              {folderDialogMode === 'subfolder'
+                ? 'Create a new subfolder to further organize your requests.'
+                : 'Create a new folder to organize your API requests.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Name</label>
+              <Input
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                placeholder="My Folder"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Description (optional)</label>
+              <Textarea
+                value={newFolderDescription}
+                onChange={(e) => setNewFolderDescription(e.target.value)}
+                placeholder="Description of this folder..."
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsFolderDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateFolder}>Create</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Folder Dialog */}
+      <Dialog open={isEditFolderDialogOpen} onOpenChange={setIsEditFolderDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Folder</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Name</label>
+              <Input
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                placeholder="My Folder"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Description (optional)</label>
+              <Textarea
+                value={newFolderDescription}
+                onChange={(e) => setNewFolderDescription(e.target.value)}
+                placeholder="Description of this folder..."
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditFolderDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateFolder}>Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

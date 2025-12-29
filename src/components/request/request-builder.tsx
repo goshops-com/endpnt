@@ -229,7 +229,10 @@ export function RequestBuilder({ onSendRequest, onImportCurl }: RequestBuilderPr
             value={activeRequest.method}
             onValueChange={(value) => updateActiveRequest({ method: value as HttpMethod })}
           >
-            <SelectTrigger className={cn('w-[120px] font-mono font-semibold', METHOD_COLORS[activeRequest.method])}>
+            <SelectTrigger
+              className={cn('w-[120px] font-mono font-semibold', METHOD_COLORS[activeRequest.method])}
+              aria-label="HTTP method"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

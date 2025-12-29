@@ -1,0 +1,90 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@clerk/nextjs/server'
+import { getStorage } from '@/lib/storage'
+import type { Collection } from '@/types'
+
+export const runtime = 'edge'
+
+// GET /api/collections - List user's collections
+export async function GET() {
+  try {
+    const { userId } = await auth()
+
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const storage = getStorage()
+    const collections = await storage.listCollections(userId)
+
+    return NextResponse.json({ collections })
+  } catch (error) {
+    console.error('Failed to list collections:', error)
+    return NextResponse.json(
+      { error: 'Failed to list collections' },
+      { status: 500 }
+    )
+  }
+}
+
+// POST /api/collections - Create or update a collection
+export async function POST(request: NextRequest) {
+  try {
+    const { userId } = await auth()
+
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const { collection } = body as { collection: Collection }
+
+    if (!collection) {
+      return NextResponse.json({ error: 'Collection is required' }, { status: 400 })
+    }
+
+    const storage = getStorage()
+    await storage.saveCollection(userId, collection)
+
+    return NextResponse.json({ success: true, collection })
+  } catch (error) {
+    console.error('Failed to save collection:', error)
+    return NextResponse.json(
+      { error: 'Failed to save collection' },
+      { status: 500 }
+    )
+  }
+}
+
+// PUT /api/collections - Bulk save collections
+export async function PUT(request: NextRequest) {
+  try {
+    const { userId } = await auth()
+
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const { collections } = body as { collections: Collection[] }
+
+    if (!collections || !Array.isArray(collections)) {
+      return NextResponse.json({ error: 'Collections array is required' }, { status: 400 })
+    }
+
+    const storage = getStorage()
+
+    // Save all collections
+    await Promise.all(
+      collections.map(collection => storage.saveCollection(userId, collection))
+    )
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Failed to save collections:', error)
+    return NextResponse.json(
+      { error: 'Failed to save collections' },
+      { status: 500 }
+    )
+  }
+}
